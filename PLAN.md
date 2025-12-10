@@ -2,6 +2,37 @@
 
 This document outlines the implementation plan for the `chap_python_sdk.testing` module, which provides testing utilities for validating chapkit model implementations following the `BaseModelRunner` interface.
 
+## Project Info
+
+- **GitHub**: https://github.com/knutdrand/chap-python-sdk
+- **Jira Parent Task**: CLIM-267 (dhis2.atlassian.net)
+
+---
+
+## Current Status
+
+### Completed
+
+- [x] Phase 1: Project setup (pyproject.toml, directory structure, test data)
+- [x] Phase 2: Type definitions (types.py)
+- [x] Phase 3: Example data loading (example_data.py)
+- [x] Phase 4: Prediction format utilities (predictions.py)
+- [x] Phase 5: Assertion helpers (assertions.py)
+- [x] Phase 6: Model I/O validation (validation.py)
+- [x] Phase 7: Public API exports (__init__.py)
+- [x] GitHub repository created and code pushed
+
+### Remaining Tasks (Jira Sub-tasks for CLIM-267)
+
+- [ ] **Add unit tests for testing module** - Write pytest tests for all testing module functions
+- [ ] **Add Makefile with lint/test commands** - Create Makefile for development workflows
+- [ ] **Run linting and fix issues** - Run ruff/mypy/pyright and fix any type or style issues
+- [ ] **Add pytest fixtures for model testing** - Create reusable fixtures in conftest.py
+- [ ] **Add CI/CD with GitHub Actions** - Set up automated testing and linting
+- [ ] **Publish package to PyPI** - Configure and publish the package (optional)
+
+---
+
 ## Overview
 
 The testing module enables model developers to:
@@ -540,15 +571,15 @@ Consider auto-discovering BaseModelRunner implementations for testing.
 
 ## Implementation Order
 
-1. **Phase 1**: Project setup (pyproject.toml, directory structure)
-2. **Phase 2**: Type definitions
-3. **Phase 3**: Example data loading (copy test data from R SDK)
-4. **Phase 4**: Prediction format utilities
-5. **Phase 5**: Assertion helpers
-6. **Phase 6**: Model I/O validation
-7. **Phase 7**: Public API exports
-8. **Phase 8**: Tests
-9. **Phase 9**: Pytest plugin (optional)
+1. [x] **Phase 1**: Project setup (pyproject.toml, directory structure)
+2. [x] **Phase 2**: Type definitions
+3. [x] **Phase 3**: Example data loading (copy test data from R SDK)
+4. [x] **Phase 4**: Prediction format utilities
+5. [x] **Phase 5**: Assertion helpers
+6. [x] **Phase 6**: Model I/O validation
+7. [x] **Phase 7**: Public API exports
+8. [ ] **Phase 8**: Tests
+9. [ ] **Phase 9**: Pytest plugin (optional)
 
 ---
 

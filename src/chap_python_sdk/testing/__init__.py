@@ -1,5 +1,7 @@
 """Testing utilities for chapkit model validation."""
 
+from chapkit import FunctionalModelRunner
+
 from chap_python_sdk.testing.assertions import (
     assert_consistent_sample_counts,
     assert_numeric_samples,
@@ -24,7 +26,9 @@ from chap_python_sdk.testing.predictions import (
 )
 from chap_python_sdk.testing.types import (
     ExampleData,
-    ModelRunnerProtocol,
+    GeoFeatureCollection,
+    PredictFunction,
+    TrainFunction,
     ValidationResult,
 )
 from chap_python_sdk.testing.validation import (
@@ -57,6 +61,10 @@ __all__ = [
     "predictions_summary",
     # Types
     "ExampleData",
+    "GeoFeatureCollection",
     "ValidationResult",
-    "ModelRunnerProtocol",
+    "TrainFunction",
+    "PredictFunction",
+    # Re-export from chapkit
+    "FunctionalModelRunner",
 ]

@@ -1,13 +1,19 @@
 """Type definitions for the testing module."""
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, TypeVar
+from typing import Any, Awaitable, Callable
 
 from chapkit.config.schemas import BaseConfig
 from chapkit.data import DataFrame
-from geojson_pydantic import FeatureCollection
+from geojson_pydantic import Feature, FeatureCollection
 
-ConfigT = TypeVar("ConfigT", bound=BaseConfig)
+GeoFeatureCollection = FeatureCollection[Feature[Any, Any]]
+
+# Type aliases for functional model runner interface
+type TrainFunction = Callable[[BaseConfig, DataFrame, GeoFeatureCollection | None], Awaitable[Any]]
+type PredictFunction = Callable[
+    [BaseConfig, Any, DataFrame, DataFrame, GeoFeatureCollection | None], Awaitable[DataFrame]
+]
 
 
 @dataclass
@@ -19,7 +25,12 @@ class ExampleData:
     future_data: DataFrame
     predictions: DataFrame | None = None
     configuration: dict[str, Any] | None = None
-    geo: FeatureCollection | None = None
+    geo: GeoFeatureCollection | None = None
+
+
+def _empty_string_list() -> list[str]:
+    """Return an empty list of strings."""
+    return []
 
 
 @dataclass
@@ -27,39 +38,7 @@ class ValidationResult:
     """Result of model I/O validation."""
 
     success: bool
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=_empty_string_list)
+    warnings: list[str] = field(default_factory=_empty_string_list)
     n_predictions: int = 0
     n_samples: int = 0
-
-
-class ModelRunnerProtocol(Protocol[ConfigT]):
-    """Protocol for chapkit model runner interface."""
-
-    async def on_init(self) -> None:
-        """Optional initialization hook."""
-        ...
-
-    async def on_cleanup(self) -> None:
-        """Optional cleanup hook."""
-        ...
-
-    async def on_train(
-        self,
-        config: ConfigT,
-        data: DataFrame,
-        geo: FeatureCollection | None = None,
-    ) -> Any:
-        """Train a model and return the trained model object."""
-        ...
-
-    async def on_predict(
-        self,
-        config: ConfigT,
-        model: Any,
-        historic: DataFrame,
-        future: DataFrame,
-        geo: FeatureCollection | None = None,
-    ) -> DataFrame:
-        """Make predictions using a trained model."""
-        ...

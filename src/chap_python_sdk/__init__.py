@@ -2,7 +2,9 @@
 
 from chap_python_sdk.testing import (
     ExampleData,
-    ModelRunnerProtocol,
+    FunctionalModelRunner,
+    PredictFunction,
+    TrainFunction,
     ValidationResult,
     assert_consistent_sample_counts,
     assert_numeric_samples,
@@ -50,5 +52,8 @@ __all__ = [
     # Types
     "ExampleData",
     "ValidationResult",
-    "ModelRunnerProtocol",
+    "TrainFunction",
+    "PredictFunction",
+    # Re-export from chapkit
+    "FunctionalModelRunner",
 ]

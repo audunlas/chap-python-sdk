@@ -1,30 +1,38 @@
 """Model I/O validation for chapkit models."""
 
 import traceback
-from typing import Any
+from typing import Any, cast
 
+from chapkit import FunctionalModelRunner
 from chapkit.config.schemas import BaseConfig
 from chapkit.data import DataFrame
 
 from chap_python_sdk.testing.assertions import PredictionValidationError
 from chap_python_sdk.testing.example_data import get_example_data, list_available_datasets
 from chap_python_sdk.testing.predictions import detect_prediction_format, predictions_from_wide
-from chap_python_sdk.testing.types import ExampleData, ModelRunnerProtocol, ValidationResult
+from chap_python_sdk.testing.types import ExampleData, PredictFunction, TrainFunction, ValidationResult
+
+
+def _get_column(dataframe: DataFrame, column: str) -> list[Any]:
+    """Get a column from a DataFrame as a list."""
+    return cast(list[Any], dataframe[column])
 
 
 async def validate_model_io(
-    runner: ModelRunnerProtocol[Any],
+    train_function: TrainFunction,
+    predict_function: PredictFunction,
     example_data: ExampleData,
     config: BaseConfig | None = None,
 ) -> ValidationResult:
-    """Validate model runner against example data.
+    """Validate model train/predict functions against example data.
 
-    This function tests that a model runner correctly implements the
-    BaseModelRunner interface by running it against example data and
+    This function tests that train and predict functions correctly implement
+    the chapkit functional interface by running them against example data and
     validating the output.
 
     Args:
-        runner: Model runner implementing ModelRunnerProtocol.
+        train_function: Async function that trains a model.
+        predict_function: Async function that generates predictions.
         example_data: Example dataset to test against.
         config: Optional model configuration.
 
@@ -40,34 +48,24 @@ async def validate_model_io(
     if config is None:
         config = BaseConfig()
 
-    try:
-        # Step 1: Call on_init
-        await runner.on_init()
-    except Exception as exception:
-        errors.append(f"on_init() failed: {exception}")
-        return ValidationResult(
-            success=False,
-            errors=errors,
-            warnings=warnings,
-            n_predictions=0,
-            n_samples=0,
-        )
+    # Create a FunctionalModelRunner to wrap the functions
+    runner = FunctionalModelRunner(on_train=train_function, on_predict=predict_function)
 
     trained_model: Any = None
     try:
-        # Step 2: Train the model
+        # Step 1: Train the model
         trained_model = await runner.on_train(
             config=config,
             data=example_data.training_data,
             geo=example_data.geo,
         )
     except Exception as exception:
-        errors.append(f"on_train() failed: {exception}\n{traceback.format_exc()}")
+        errors.append(f"train_function() failed: {exception}\n{traceback.format_exc()}")
 
     predictions: DataFrame | None = None
     if trained_model is not None:
         try:
-            # Step 3: Generate predictions
+            # Step 2: Generate predictions
             predictions = await runner.on_predict(
                 config=config,
                 model=trained_model,
@@ -76,23 +74,17 @@ async def validate_model_io(
                 geo=example_data.geo,
             )
         except Exception as exception:
-            errors.append(f"on_predict() failed: {exception}\n{traceback.format_exc()}")
+            errors.append(f"predict_function() failed: {exception}\n{traceback.format_exc()}")
 
-    # Step 4: Validate predictions
+    # Step 3: Validate predictions
     if predictions is not None:
-        validation_errors = _validate_predictions(predictions, example_data.future_data)
+        normalized_predictions, validation_errors = _validate_predictions(predictions, example_data.future_data)
         errors.extend(validation_errors)
 
-        if not validation_errors:
-            n_predictions = len(predictions)
-            if "samples" in predictions.columns and n_predictions > 0:
-                n_samples = len(predictions["samples"].iloc[0])
-
-    try:
-        # Step 5: Call on_cleanup
-        await runner.on_cleanup()
-    except Exception as exception:
-        warnings.append(f"on_cleanup() failed: {exception}")
+        if not validation_errors and normalized_predictions is not None:
+            n_predictions = len(normalized_predictions)
+            if "samples" in normalized_predictions.columns and n_predictions > 0:
+                n_samples = len(_get_column(normalized_predictions, "samples")[0])
 
     return ValidationResult(
         success=len(errors) == 0,
@@ -103,7 +95,7 @@ async def validate_model_io(
     )
 
 
-def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> list[str]:
+def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> tuple[DataFrame | None, list[str]]:
     """Validate prediction output structure.
 
     Args:
@@ -111,19 +103,20 @@ def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> lis
         future_data: Expected future data DataFrame.
 
     Returns:
-        List of error messages (empty if valid).
+        Tuple of (normalized_predictions, error_messages).
+        normalized_predictions is None if validation fails early.
     """
     errors: list[str] = []
 
     # Check if predictions is a DataFrame
     if not isinstance(predictions, DataFrame):
         errors.append(f"Predictions must be a DataFrame, got {type(predictions).__name__}")
-        return errors
+        return None, errors
 
     # Check if predictions is empty
     if len(predictions) == 0:
         errors.append("Predictions DataFrame is empty")
-        return errors
+        return None, errors
 
     # Try to detect and convert format if needed
     try:
@@ -132,7 +125,7 @@ def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> lis
             predictions = predictions_from_wide(predictions)
     except ValueError as exception:
         errors.append(f"Invalid prediction format: {exception}")
-        return errors
+        return None, errors
 
     # Check required columns
     if "time_period" not in predictions.columns:
@@ -143,14 +136,11 @@ def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> lis
 
     if "samples" not in predictions.columns:
         errors.append("Predictions missing 'samples' column")
-        return errors
+        return None, errors
 
     # Check row count
     if len(predictions) != len(future_data):
-        errors.append(
-            f"Predictions have {len(predictions)} rows, "
-            f"expected {len(future_data)} (matching future_data)"
-        )
+        errors.append(f"Predictions have {len(predictions)} rows, expected {len(future_data)} (matching future_data)")
 
     # Check samples column
     try:
@@ -158,7 +148,7 @@ def _validate_predictions(predictions: DataFrame, future_data: DataFrame) -> lis
     except PredictionValidationError as exception:
         errors.append(str(exception))
 
-    return errors
+    return predictions, errors
 
 
 def _validate_samples_column(predictions: DataFrame) -> None:
@@ -171,14 +161,13 @@ def _validate_samples_column(predictions: DataFrame) -> None:
         PredictionValidationError: If validation fails.
     """
     sample_counts: set[int] = set()
+    samples_column = _get_column(predictions, "samples")
 
     for idx in range(len(predictions)):
-        samples = predictions["samples"].iloc[idx]
+        samples = samples_column[idx]
 
         if not isinstance(samples, (list,)):
-            raise PredictionValidationError(
-                f"Row {idx}: 'samples' must be a list, got {type(samples).__name__}"
-            )
+            raise PredictionValidationError(f"Row {idx}: 'samples' must be a list, got {type(samples).__name__}")
 
         if len(samples) == 0:
             raise PredictionValidationError(f"Row {idx}: 'samples' is empty")
@@ -189,27 +178,26 @@ def _validate_samples_column(predictions: DataFrame) -> None:
         for sample_idx, value in enumerate(samples):
             if not isinstance(value, (int, float)):
                 raise PredictionValidationError(
-                    f"Row {idx}, sample {sample_idx}: "
-                    f"Expected numeric value, got {type(value).__name__}"
+                    f"Row {idx}, sample {sample_idx}: Expected numeric value, got {type(value).__name__}"
                 )
 
     # Check consistent sample counts
     if len(sample_counts) > 1:
-        raise PredictionValidationError(
-            f"Inconsistent sample counts across rows: {sample_counts}"
-        )
+        raise PredictionValidationError(f"Inconsistent sample counts across rows: {sample_counts}")
 
 
 async def validate_model_io_all(
-    runner: ModelRunnerProtocol[Any],
+    train_function: TrainFunction,
+    predict_function: PredictFunction,
     config: BaseConfig | None = None,
     country: str | None = None,
     frequency: str | None = None,
 ) -> ValidationResult:
-    """Validate model runner against all matching datasets.
+    """Validate model train/predict functions against all matching datasets.
 
     Args:
-        runner: Model runner implementing ModelRunnerProtocol.
+        train_function: Async function that trains a model.
+        predict_function: Async function that generates predictions.
         config: Optional model configuration.
         country: Filter by country (optional).
         frequency: Filter by frequency (optional).
@@ -242,17 +230,13 @@ async def validate_model_io_all(
 
     for dataset_country, dataset_frequency in datasets:
         example_data = get_example_data(dataset_country, dataset_frequency)
-        result = await validate_model_io(runner, example_data, config)
+        result = await validate_model_io(train_function, predict_function, example_data, config)
 
         if result.errors:
-            all_errors.extend(
-                [f"[{dataset_country}/{dataset_frequency}] {e}" for e in result.errors]
-            )
+            all_errors.extend([f"[{dataset_country}/{dataset_frequency}] {e}" for e in result.errors])
 
         if result.warnings:
-            all_warnings.extend(
-                [f"[{dataset_country}/{dataset_frequency}] {w}" for w in result.warnings]
-            )
+            all_warnings.extend([f"[{dataset_country}/{dataset_frequency}] {w}" for w in result.warnings])
 
         total_predictions += result.n_predictions
         if result.n_samples > 0:

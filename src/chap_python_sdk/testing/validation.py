@@ -3,14 +3,19 @@
 import traceback
 from typing import Any, cast
 
-from chapkit import FunctionalModelRunner
 from chapkit.config.schemas import BaseConfig
 from chapkit.data import DataFrame
 
 from chap_python_sdk.testing.assertions import PredictionValidationError
 from chap_python_sdk.testing.example_data import get_example_data, list_available_datasets
 from chap_python_sdk.testing.predictions import detect_prediction_format, predictions_from_wide
-from chap_python_sdk.testing.types import ExampleData, PredictFunction, TrainFunction, ValidationResult
+from chap_python_sdk.testing.types import (
+    ExampleData,
+    PredictFunction,
+    RunInfo,
+    TrainFunction,
+    ValidationResult,
+)
 
 
 def _get_column(dataframe: DataFrame, column: str) -> list[Any]:
@@ -23,6 +28,7 @@ async def validate_model_io(
     predict_function: PredictFunction,
     example_data: ExampleData,
     config: BaseConfig | None = None,
+    run_info: RunInfo | None = None,
 ) -> ValidationResult:
     """Validate model train/predict functions against example data.
 
@@ -35,6 +41,8 @@ async def validate_model_io(
         predict_function: Async function that generates predictions.
         example_data: Example dataset to test against.
         config: Optional model configuration.
+        run_info: Optional runtime information. If not provided, uses example_data.run_info
+            or creates a default RunInfo.
 
     Returns:
         ValidationResult with success status, errors, and statistics.
@@ -48,16 +56,20 @@ async def validate_model_io(
     if config is None:
         config = BaseConfig()
 
-    # Create a FunctionalModelRunner to wrap the functions
-    runner = FunctionalModelRunner(on_train=train_function, on_predict=predict_function)
+    # Use provided run_info, or from example_data, or create default
+    if run_info is None:
+        run_info = example_data.run_info
+    if run_info is None:
+        run_info = RunInfo(prediction_length=len(example_data.future_data))
 
     trained_model: Any = None
     try:
         # Step 1: Train the model
-        trained_model = await runner.on_train(
-            config=config,
-            data=example_data.training_data,
-            geo=example_data.geo,
+        trained_model = await train_function(
+            config,
+            example_data.training_data,
+            run_info,
+            example_data.geo,
         )
     except Exception as exception:
         errors.append(f"train_function() failed: {exception}\n{traceback.format_exc()}")
@@ -66,12 +78,13 @@ async def validate_model_io(
     if trained_model is not None:
         try:
             # Step 2: Generate predictions
-            predictions = await runner.on_predict(
-                config=config,
-                model=trained_model,
-                historic=example_data.historic_data,
-                future=example_data.future_data,
-                geo=example_data.geo,
+            predictions = await predict_function(
+                config,
+                trained_model,
+                example_data.historic_data,
+                example_data.future_data,
+                run_info,
+                example_data.geo,
             )
         except Exception as exception:
             errors.append(f"predict_function() failed: {exception}\n{traceback.format_exc()}")
@@ -190,6 +203,7 @@ async def validate_model_io_all(
     train_function: TrainFunction,
     predict_function: PredictFunction,
     config: BaseConfig | None = None,
+    run_info: RunInfo | None = None,
     country: str | None = None,
     frequency: str | None = None,
 ) -> ValidationResult:
@@ -199,6 +213,7 @@ async def validate_model_io_all(
         train_function: Async function that trains a model.
         predict_function: Async function that generates predictions.
         config: Optional model configuration.
+        run_info: Optional runtime information. If not provided, uses dataset defaults.
         country: Filter by country (optional).
         frequency: Filter by frequency (optional).
 
@@ -230,7 +245,7 @@ async def validate_model_io_all(
 
     for dataset_country, dataset_frequency in datasets:
         example_data = get_example_data(dataset_country, dataset_frequency)
-        result = await validate_model_io(train_function, predict_function, example_data, config)
+        result = await validate_model_io(train_function, predict_function, example_data, config, run_info)
 
         if result.errors:
             all_errors.extend([f"[{dataset_country}/{dataset_frequency}] {e}" for e in result.errors])

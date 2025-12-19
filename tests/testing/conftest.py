@@ -6,7 +6,14 @@ import pytest
 from chapkit.config.schemas import BaseConfig
 from chapkit.data import DataFrame
 
-from chap_python_sdk.testing import ExampleData, GeoFeatureCollection, PredictFunction, TrainFunction, get_example_data
+from chap_python_sdk.testing import (
+    ExampleData,
+    GeoFeatureCollection,
+    PredictFunction,
+    RunInfo,
+    TrainFunction,
+    get_example_data,
+)
 
 
 @pytest.fixture
@@ -101,6 +108,7 @@ def create_simple_train_function(n_samples: int = 10) -> TrainFunction:
     async def simple_train(
         config: BaseConfig,
         data: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> dict[str, Any]:
         """Train a simple mean model."""
@@ -109,7 +117,7 @@ def create_simple_train_function(n_samples: int = 10) -> TrainFunction:
             mean_value = sum(values) / len(values) if values else 0.0
         else:
             mean_value = 10.0
-        return {"mean": mean_value, "n_samples": n_samples}
+        return {"mean": mean_value, "n_samples": n_samples, "prediction_length": run_info.prediction_length}
 
     return simple_train
 
@@ -122,6 +130,7 @@ def create_simple_predict_function() -> PredictFunction:
         model: Any,
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Generate predictions with configurable sample count."""
@@ -149,6 +158,7 @@ def create_failing_train_function() -> TrainFunction:
     async def failing_train(
         config: BaseConfig,
         data: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> Any:
         """Fail during training."""
@@ -165,6 +175,7 @@ def create_failing_predict_function() -> PredictFunction:
         model: Any,
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Fail during prediction."""
@@ -181,6 +192,7 @@ def create_invalid_output_predict_function() -> PredictFunction:
         model: Any,
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Return predictions missing samples column."""
@@ -202,6 +214,7 @@ def create_wide_format_predict_function(n_samples: int = 10) -> PredictFunction:
         model: Any,
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Generate predictions in wide format (sample_0, sample_1, etc.)."""

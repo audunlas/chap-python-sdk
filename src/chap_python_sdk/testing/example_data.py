@@ -6,28 +6,13 @@ from typing import Any
 
 from chapkit.data import DataFrame
 
-from chap_python_sdk.testing.types import ExampleData
-
-# Time column names in priority order
-TIME_COLUMNS = ["time_period", "date", "week", "month", "year", "time", "period"]
-
-# Location column names in priority order
-LOCATION_COLUMNS = ["location", "region", "district", "area", "site", "id", "country", "province"]
+from chap_python_sdk.testing.types import ExampleData, RunInfo
 
 
 def _get_data_directory() -> Path:
     """Get the path to the bundled data directory."""
     with resources.as_file(resources.files("chap_python_sdk") / "data") as data_path:
         return Path(data_path)
-
-
-def _find_column(dataframe: DataFrame, candidates: list[str]) -> str | None:
-    """Find the first matching column from a list of candidates."""
-    columns = set(dataframe.columns)
-    for candidate in candidates:
-        if candidate in columns:
-            return candidate
-    return None
 
 
 def _load_csv(file_path: Path) -> DataFrame:
@@ -135,8 +120,7 @@ def get_example_data(
         available = list_available_datasets()
         available_str = ", ".join(f"({c}, {f})" for c, f in available)
         raise FileNotFoundError(
-            f"Dataset not found for country='{country}', frequency='{frequency}'. "
-            f"Available datasets: {available_str}"
+            f"Dataset not found for country='{country}', frequency='{frequency}'. Available datasets: {available_str}"
         )
 
     training_data = _load_csv(dataset_path / "training_data.csv")
@@ -148,11 +132,15 @@ def get_example_data(
     if predictions_path.exists():
         predictions = _load_csv(predictions_path)
 
+    # Create default RunInfo based on future_data
+    run_info = RunInfo(prediction_length=len(future_data))
+
     return ExampleData(
         training_data=training_data,
         historic_data=historic_data,
         future_data=future_data,
         predictions=predictions,
+        run_info=run_info,
         configuration=configuration,
         geo=None,
     )

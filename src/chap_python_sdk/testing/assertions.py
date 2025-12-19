@@ -1,10 +1,15 @@
 """Assertion helpers for model I/O validation."""
 
 from numbers import Number
+from typing import Any, cast
 
 import numpy as np
-
 from chapkit.data import DataFrame
+
+
+def _get_column(dataframe: DataFrame, column: str) -> list[Any]:
+    """Get a column from a DataFrame as a list."""
+    return cast(list[Any], dataframe[column])
 
 
 class PredictionValidationError(AssertionError):
@@ -33,9 +38,7 @@ def assert_valid_predictions(
         raise PredictionValidationError("Predictions DataFrame is empty")
 
     if expected_rows is not None and len(predictions) != expected_rows:
-        raise PredictionValidationError(
-            f"Expected {expected_rows} prediction rows, got {len(predictions)}"
-        )
+        raise PredictionValidationError(f"Expected {expected_rows} prediction rows, got {len(predictions)}")
 
     # Check for required columns
     assert_time_location_columns(predictions)
@@ -64,8 +67,8 @@ def assert_prediction_shape(
 
     # Check that time_period and location values match
     if "time_period" in predictions.columns and "time_period" in future_data.columns:
-        pred_periods = set(predictions["time_period"].tolist())
-        future_periods = set(future_data["time_period"].tolist())
+        pred_periods = set(predictions["time_period"])
+        future_periods = set(future_data["time_period"])
         if pred_periods != future_periods:
             missing = future_periods - pred_periods
             extra = pred_periods - future_periods
@@ -77,8 +80,8 @@ def assert_prediction_shape(
             raise PredictionValidationError(message)
 
     if "location" in predictions.columns and "location" in future_data.columns:
-        pred_locations = set(predictions["location"].tolist())
-        future_locations = set(future_data["location"].tolist())
+        pred_locations = set(predictions["location"])
+        future_locations = set(future_data["location"])
         if pred_locations != future_locations:
             missing = future_locations - pred_locations
             extra = pred_locations - future_locations
@@ -108,24 +111,19 @@ def assert_samples_column(
     if "samples" not in predictions.columns:
         raise PredictionValidationError("Predictions must have 'samples' column")
 
+    samples_column = _get_column(predictions, "samples")
     for idx in range(len(predictions)):
-        samples = predictions["samples"].iloc[idx]
+        samples = samples_column[idx]
 
         if not isinstance(samples, (list, np.ndarray)):
-            raise PredictionValidationError(
-                f"Row {idx}: 'samples' must be a list, got {type(samples).__name__}"
-            )
+            raise PredictionValidationError(f"Row {idx}: 'samples' must be a list, got {type(samples).__name__}")
 
         n_samples = len(samples)
         if n_samples < min_samples:
-            raise PredictionValidationError(
-                f"Row {idx}: Expected at least {min_samples} samples, got {n_samples}"
-            )
+            raise PredictionValidationError(f"Row {idx}: Expected at least {min_samples} samples, got {n_samples}")
 
         if max_samples is not None and n_samples > max_samples:
-            raise PredictionValidationError(
-                f"Row {idx}: Expected at most {max_samples} samples, got {n_samples}"
-            )
+            raise PredictionValidationError(f"Row {idx}: Expected at most {max_samples} samples, got {n_samples}")
 
 
 def assert_consistent_sample_counts(predictions: DataFrame) -> None:
@@ -143,13 +141,13 @@ def assert_consistent_sample_counts(predictions: DataFrame) -> None:
     if len(predictions) == 0:
         return
 
-    sample_counts = [len(predictions["samples"].iloc[idx]) for idx in range(len(predictions))]
+    samples_column = _get_column(predictions, "samples")
+    sample_counts = [len(samples_column[idx]) for idx in range(len(predictions))]
     unique_counts = set(sample_counts)
 
     if len(unique_counts) > 1:
         raise PredictionValidationError(
-            f"Inconsistent sample counts across rows: {unique_counts}. "
-            "All rows must have the same number of samples."
+            f"Inconsistent sample counts across rows: {unique_counts}. All rows must have the same number of samples."
         )
 
 
@@ -165,20 +163,21 @@ def assert_numeric_samples(predictions: DataFrame) -> None:
     if "samples" not in predictions.columns:
         raise PredictionValidationError("Predictions must have 'samples' column")
 
+    samples_column = _get_column(predictions, "samples")
     for idx in range(len(predictions)):
-        samples = predictions["samples"].iloc[idx]
+        samples = samples_column[idx]
 
         for sample_idx, value in enumerate(samples):
-            if not isinstance(value, Number) and not (isinstance(value, np.generic) and np.issubdtype(value.dtype, np.number)):
+            if not isinstance(value, Number) and not (
+                isinstance(value, np.generic) and np.issubdtype(value.dtype, np.number)
+            ):
                 raise PredictionValidationError(
                     f"Row {idx}, sample {sample_idx}: Expected numeric value, got {type(value).__name__}"
                 )
 
             # Check for NaN/Inf
             if isinstance(value, float) and (np.isnan(value) or np.isinf(value)):
-                raise PredictionValidationError(
-                    f"Row {idx}, sample {sample_idx}: Sample value is {value}"
-                )
+                raise PredictionValidationError(f"Row {idx}, sample {sample_idx}: Sample value is {value}")
 
 
 def assert_time_location_columns(predictions: DataFrame) -> None:
@@ -199,6 +198,90 @@ def assert_time_location_columns(predictions: DataFrame) -> None:
         missing_columns.append("location")
 
     if missing_columns:
+        raise PredictionValidationError(f"Predictions missing required columns: {missing_columns}")
+
+
+def assert_wide_format_predictions(predictions: DataFrame) -> None:
+    """Assert predictions are in wide format (sample_0, sample_1, ...).
+
+    Args:
+        predictions: DataFrame to validate.
+
+    Raises:
+        PredictionValidationError: If not in wide format.
+    """
+    sample_columns = [col for col in predictions.columns if col.startswith("sample_")]
+    if not sample_columns:
         raise PredictionValidationError(
-            f"Predictions missing required columns: {missing_columns}"
+            "Predictions must have sample columns (sample_0, sample_1, ...). "
+            "Found columns: " + ", ".join(predictions.columns)
         )
+
+
+def assert_nonnegative_predictions(predictions: DataFrame) -> None:
+    """Assert all prediction values are non-negative.
+
+    Works with both wide format (sample_0, sample_1, ...) and nested format (samples column).
+
+    Args:
+        predictions: DataFrame to validate.
+
+    Raises:
+        PredictionValidationError: If negative values are found.
+    """
+    # Check for wide format (sample_0, sample_1, ...)
+    sample_columns = [col for col in predictions.columns if col.startswith("sample_")]
+
+    if sample_columns:
+        for col in sample_columns:
+            values = _get_column(predictions, col)
+            for idx, val in enumerate(values):
+                if isinstance(val, (int, float)) and val < 0:
+                    raise PredictionValidationError(
+                        f"Row {idx}, {col}: Negative value {val} not allowed. Predictions must be non-negative."
+                    )
+    elif "samples" in predictions.columns:
+        # Check nested format
+        samples_column = _get_column(predictions, "samples")
+        for idx in range(len(predictions)):
+            samples = samples_column[idx]
+            for sample_idx, val in enumerate(samples):
+                if isinstance(val, (int, float)) and val < 0:
+                    raise PredictionValidationError(
+                        f"Row {idx}, sample {sample_idx}: Negative value {val} not allowed. "
+                        "Predictions must be non-negative."
+                    )
+    else:
+        raise PredictionValidationError("Predictions must have sample columns or 'samples' column")
+
+
+def assert_no_nan_predictions(predictions: DataFrame) -> None:
+    """Assert no NaN values in predictions.
+
+    Works with both wide format (sample_0, sample_1, ...) and nested format (samples column).
+
+    Args:
+        predictions: DataFrame to validate.
+
+    Raises:
+        PredictionValidationError: If NaN values are found.
+    """
+    # Check for wide format (sample_0, sample_1, ...)
+    sample_columns = [col for col in predictions.columns if col.startswith("sample_")]
+
+    if sample_columns:
+        for col in sample_columns:
+            values = _get_column(predictions, col)
+            for idx, val in enumerate(values):
+                if isinstance(val, float) and np.isnan(val):
+                    raise PredictionValidationError(f"Row {idx}, {col}: NaN value not allowed")
+    elif "samples" in predictions.columns:
+        # Check nested format
+        samples_column = _get_column(predictions, "samples")
+        for idx in range(len(predictions)):
+            samples = samples_column[idx]
+            for sample_idx, val in enumerate(samples):
+                if isinstance(val, float) and np.isnan(val):
+                    raise PredictionValidationError(f"Row {idx}, sample {sample_idx}: NaN value not allowed")
+    else:
+        raise PredictionValidationError("Predictions must have sample columns or 'samples' column")

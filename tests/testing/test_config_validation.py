@@ -17,6 +17,7 @@ from chap_python_sdk.testing import (
     ExampleData,
     GeoFeatureCollection,
     PredictFunction,
+    RunInfo,
     TrainFunction,
     get_example_data,
     validate_model_io,
@@ -37,6 +38,7 @@ def create_config_aware_train_function() -> TrainFunction:
     async def config_aware_train(
         config: BaseConfig,
         data: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> dict[str, Any]:
         """Train and store the config for verification."""
@@ -60,6 +62,7 @@ def create_config_aware_predict_function() -> PredictFunction:
         model: dict[str, Any],
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Generate predictions using config values."""
@@ -90,6 +93,7 @@ def create_hardcoded_defaults_train_function() -> TrainFunction:
     async def hardcoded_train(
         config: BaseConfig,
         data: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> dict[str, float]:
         """Train the model."""
@@ -106,6 +110,7 @@ def create_hardcoded_defaults_predict_function(hardcoded_n_samples: int = 10) ->
         model: dict[str, float],
         historic: DataFrame,
         future: DataFrame,
+        run_info: RunInfo,
         geo: GeoFeatureCollection | None = None,
     ) -> DataFrame:
         """Generate predictions with hardcoded sample count (ignoring config)."""

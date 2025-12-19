@@ -2,16 +2,19 @@
 
 from chap_python_sdk.testing import (
     ExampleData,
-    FunctionalModelRunner,
     PredictFunction,
+    RunInfo,
     TrainFunction,
     ValidationResult,
     assert_consistent_sample_counts,
+    assert_no_nan_predictions,
+    assert_nonnegative_predictions,
     assert_numeric_samples,
     assert_prediction_shape,
     assert_samples_column,
     assert_time_location_columns,
     assert_valid_predictions,
+    assert_wide_format_predictions,
     detect_prediction_format,
     get_example_data,
     has_prediction_samples,
@@ -40,6 +43,9 @@ __all__ = [
     "assert_consistent_sample_counts",
     "assert_numeric_samples",
     "assert_time_location_columns",
+    "assert_wide_format_predictions",
+    "assert_nonnegative_predictions",
+    "assert_no_nan_predictions",
     # Predictions
     "predictions_to_wide",
     "predictions_from_wide",
@@ -54,6 +60,5 @@ __all__ = [
     "ValidationResult",
     "TrainFunction",
     "PredictFunction",
-    # Re-export from chapkit
-    "FunctionalModelRunner",
+    "RunInfo",
 ]

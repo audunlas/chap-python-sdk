@@ -1,11 +1,16 @@
 """Prediction format utilities for converting between different formats."""
 
 import re
-from typing import Literal
+from typing import Any, Literal, cast
 
 import numpy as np
-
 from chapkit.data import DataFrame
+
+
+def _get_column(dataframe: DataFrame, column: str) -> list[Any]:
+    """Get a column from a DataFrame as a list."""
+    return cast(list[Any], dataframe[column])
+
 
 # Column names that identify non-sample data columns
 NON_SAMPLE_COLUMNS = {"time_period", "location", "date", "sample_id", "prediction"}
@@ -61,11 +66,11 @@ def has_prediction_samples(predictions: DataFrame) -> bool:
         return False
 
     # Check that samples column contains lists
-    samples_column = predictions["samples"]
+    samples_column = _get_column(predictions, "samples")
     if len(samples_column) == 0:
         return True
 
-    first_value = samples_column.iloc[0]
+    first_value = samples_column[0]
     return isinstance(first_value, (list, np.ndarray))
 
 
@@ -88,18 +93,18 @@ def predictions_to_wide(predictions: DataFrame) -> DataFrame:
     non_sample_columns = [col for col in predictions.columns if col != "samples"]
 
     # Extract samples and determine number of samples
-    samples_list = predictions["samples"].tolist()
+    samples_list = _get_column(predictions, "samples")
     if not samples_list:
         return predictions.drop(columns=["samples"])
 
     n_samples = len(samples_list[0])
 
     # Create wide format data
-    data = {col: predictions[col].tolist() for col in non_sample_columns}
+    data = {col: list(predictions[col]) for col in non_sample_columns}
     for i in range(n_samples):
         data[f"sample_{i}"] = [row[i] if i < len(row) else None for row in samples_list]
 
-    return DataFrame(data)
+    return DataFrame.from_dict(data)
 
 
 def predictions_from_wide(predictions: DataFrame) -> DataFrame:
@@ -126,16 +131,16 @@ def predictions_from_wide(predictions: DataFrame) -> DataFrame:
     non_sample_columns = [col for col in columns if col not in sample_columns]
 
     # Create nested format data
-    data = {col: predictions[col].tolist() for col in non_sample_columns}
+    data = {col: list(predictions[col]) for col in non_sample_columns}
 
     # Combine sample columns into lists
     samples = []
     for idx in range(len(predictions)):
-        row_samples = [predictions[col].iloc[idx] for col in sample_columns]
+        row_samples = [_get_column(predictions, col)[idx] for col in sample_columns]
         samples.append(row_samples)
 
     data["samples"] = samples
-    return DataFrame(data)
+    return DataFrame.from_dict(data)
 
 
 def predictions_to_long(predictions: DataFrame) -> DataFrame:
@@ -157,8 +162,8 @@ def predictions_to_long(predictions: DataFrame) -> DataFrame:
 
     rows = []
     for idx in range(len(predictions)):
-        base_row = {col: predictions[col].iloc[idx] for col in non_sample_columns}
-        samples = predictions["samples"].iloc[idx]
+        base_row = {col: _get_column(predictions, col)[idx] for col in non_sample_columns}
+        samples = _get_column(predictions, "samples")[idx]
 
         for sample_id, prediction in enumerate(samples):
             row = base_row.copy()
@@ -166,7 +171,7 @@ def predictions_to_long(predictions: DataFrame) -> DataFrame:
             row["prediction"] = prediction
             rows.append(row)
 
-    return DataFrame(rows)
+    return DataFrame.from_records(rows)
 
 
 def predictions_from_long(predictions: DataFrame) -> DataFrame:
@@ -189,9 +194,9 @@ def predictions_from_long(predictions: DataFrame) -> DataFrame:
     # Group by non-sample columns
     grouped: dict[tuple[object, ...], list[tuple[int, float]]] = {}
     for idx in range(len(predictions)):
-        key = tuple(predictions[col].iloc[idx] for col in non_sample_columns)
-        sample_id = int(predictions["sample_id"].iloc[idx])
-        prediction = float(predictions["prediction"].iloc[idx])
+        key = tuple(_get_column(predictions, col)[idx] for col in non_sample_columns)
+        sample_id = int(_get_column(predictions, "sample_id")[idx])
+        prediction = float(_get_column(predictions, "prediction")[idx])
 
         if key not in grouped:
             grouped[key] = []
@@ -206,7 +211,7 @@ def predictions_from_long(predictions: DataFrame) -> DataFrame:
         row["samples"] = [s[1] for s in sorted_samples]
         rows.append(row)
 
-    return DataFrame(rows)
+    return DataFrame.from_records(rows)
 
 
 def predictions_to_quantiles(
@@ -229,16 +234,17 @@ def predictions_to_quantiles(
         raise ValueError("Predictions must have 'samples' column.")
 
     non_sample_columns = [col for col in predictions.columns if col != "samples"]
-    data = {col: predictions[col].tolist() for col in non_sample_columns}
+    data = {col: list(predictions[col]) for col in non_sample_columns}
 
+    samples_column = _get_column(predictions, "samples")
     for prob in probabilities:
         quantile_values = []
         for idx in range(len(predictions)):
-            samples = predictions["samples"].iloc[idx]
+            samples = samples_column[idx]
             quantile_values.append(float(np.quantile(samples, prob)))
         data[f"q_{prob}"] = quantile_values
 
-    return DataFrame(data)
+    return DataFrame.from_dict(data)
 
 
 def predictions_summary(
@@ -261,13 +267,14 @@ def predictions_summary(
         raise ValueError("Predictions must have 'samples' column.")
 
     # Copy all existing columns
-    data = {col: predictions[col].tolist() for col in predictions.columns}
+    data = {col: list(predictions[col]) for col in predictions.columns}
 
     # Add mean and median
+    samples_column = _get_column(predictions, "samples")
     means = []
     medians = []
     for idx in range(len(predictions)):
-        samples = predictions["samples"].iloc[idx]
+        samples = samples_column[idx]
         means.append(float(np.mean(samples)))
         medians.append(float(np.median(samples)))
 
@@ -282,11 +289,11 @@ def predictions_summary(
         upper_values = []
 
         for idx in range(len(predictions)):
-            samples = predictions["samples"].iloc[idx]
+            samples = samples_column[idx]
             lower_values.append(float(np.quantile(samples, lower_prob)))
             upper_values.append(float(np.quantile(samples, upper_prob)))
 
         data[f"ci_{ci}_lower"] = lower_values
         data[f"ci_{ci}_upper"] = upper_values
 
-    return DataFrame(data)
+    return DataFrame.from_dict(data)

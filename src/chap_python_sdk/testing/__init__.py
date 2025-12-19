@@ -15,6 +15,13 @@ from chap_python_sdk.testing.example_data import (
     get_example_data,
     list_available_datasets,
 )
+from chap_python_sdk.testing.generators import (
+    MLServiceInfo,
+    PeriodType,
+    generate_example_data,
+    generate_run_info,
+    generate_test_data,
+)
 from chap_python_sdk.testing.predictions import (
     detect_prediction_format,
     has_prediction_samples,
@@ -42,6 +49,12 @@ __all__ = [
     # Example data
     "get_example_data",
     "list_available_datasets",
+    # Generators
+    "generate_run_info",
+    "generate_example_data",
+    "generate_test_data",
+    "MLServiceInfo",
+    "PeriodType",
     # Validation
     "validate_model_io",
     "validate_model_io_all",

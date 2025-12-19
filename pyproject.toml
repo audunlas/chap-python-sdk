@@ -43,6 +43,11 @@ warn_unused_configs = true
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportUnnecessaryIsInstance = false
 
 [tool.ruff]
 line-length = 120

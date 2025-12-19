@@ -7,6 +7,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 from chapkit.data import DataFrame
+from pydantic import BaseModel, Field
 
 from chap_python_sdk.testing.types import ExampleData, RunInfo
 
@@ -20,40 +21,69 @@ class PeriodType(StrEnum):
     year = "year"
 
 
-class MLServiceInfo:
-    """Minimal representation of MLServiceInfo for dataset generation.
+class MLServiceInfo(BaseModel):
+    """Model service information for dataset generation."""
 
-    This allows using the generator without importing chapkit.api directly,
-    or accepting the actual MLServiceInfo from chapkit.
-    """
+    required_covariates: list[str] = Field(default_factory=list)
+    allow_free_additional_continuous_covariates: bool = False
+    supported_period_type: PeriodType = PeriodType.any
 
-    def __init__(
-        self,
-        required_covariates: list[str] | None = None,
-        allow_free_additional_continuous_covariates: bool = False,
-        supported_period_type: PeriodType | str = PeriodType.any,
-    ) -> None:
-        """Initialize service info for dataset generation."""
-        self.required_covariates = required_covariates or []
-        self.allow_free_additional_continuous_covariates = allow_free_additional_continuous_covariates
-        self.supported_period_type = (
-            PeriodType(supported_period_type)
-            if isinstance(supported_period_type, str)
-            else supported_period_type
-        )
+
+class DataGenerationConfig(BaseModel):
+    """Configuration for test data generation."""
+
+    prediction_length: int | None = Field(
+        default=None,
+        description="Number of periods to predict. Defaults based on period type.",
+    )
+    additional_covariates: list[str] = Field(
+        default_factory=list,
+        description="Additional covariates to include (if model allows).",
+    )
+    n_locations: int = Field(
+        default=3,
+        ge=1,
+        description="Number of locations to generate.",
+    )
+    n_training_periods: int = Field(
+        default=24,
+        ge=1,
+        description="Number of training periods.",
+    )
+    n_historic_periods: int = Field(
+        default=12,
+        ge=1,
+        description="Number of historic periods (subset of training).",
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for reproducibility.",
+    )
+    location_names: list[str] | None = Field(
+        default=None,
+        description="Custom location names. Defaults to Location_A, Location_B, etc.",
+    )
+    include_nans: bool = Field(
+        default=False,
+        description="Include NaN values to test missing value handling.",
+    )
+    nan_fraction: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of values to replace with NaN when include_nans=True.",
+    )
 
 
 def generate_run_info(
     service_info: MLServiceInfo,
-    prediction_length: int | None = None,
-    additional_covariates: list[str] | None = None,
+    config: DataGenerationConfig | None = None,
 ) -> RunInfo:
     """Generate a valid RunInfo based on MLServiceInfo.
 
     Args:
         service_info: Model service information with requirements.
-        prediction_length: Override default prediction length.
-        additional_covariates: Additional covariates to include (if allowed).
+        config: Generation configuration with prediction_length and covariates.
 
     Returns:
         RunInfo configured for the model.
@@ -61,6 +91,8 @@ def generate_run_info(
     Raises:
         ValueError: If additional covariates requested but not allowed.
     """
+    config = config or DataGenerationConfig()
+
     default_lengths = {
         PeriodType.week: 4,
         PeriodType.month: 3,
@@ -68,9 +100,9 @@ def generate_run_info(
         PeriodType.any: 3,
     }
 
-    length = prediction_length or default_lengths.get(service_info.supported_period_type, 3)
+    length = config.prediction_length or default_lengths.get(service_info.supported_period_type, 3)
 
-    covariates = additional_covariates or []
+    covariates = config.additional_covariates
     if covariates and not service_info.allow_free_additional_continuous_covariates:
         raise ValueError(
             "Model does not allow additional covariates "
@@ -148,46 +180,54 @@ def _get_covariate_generator(covariate_name: str) -> CovariateGenerator:
     return generators.get(covariate_name, _generate_default)
 
 
+def _inject_nans(df: pd.DataFrame, nan_fraction: float, exclude_columns: list[str]) -> pd.DataFrame:
+    """Inject NaN values into numeric columns of a DataFrame."""
+    df = df.copy()
+    numeric_columns = [col for col in df.select_dtypes(include=[np.number]).columns if col not in exclude_columns]
+
+    for col in numeric_columns:
+        n_nans = int(len(df) * nan_fraction)
+        if n_nans > 0:
+            nan_indices = np.random.choice(len(df), size=n_nans, replace=False)
+            df.loc[nan_indices, col] = np.nan
+
+    return df
+
+
 def generate_example_data(
     service_info: MLServiceInfo,
     run_info: RunInfo,
-    n_locations: int = 3,
-    n_training_periods: int = 24,
-    n_historic_periods: int = 12,
-    seed: int | None = None,
-    location_names: list[str] | None = None,
+    config: DataGenerationConfig | None = None,
 ) -> ExampleData:
     """Generate complete example dataset based on service info and run info.
 
     Args:
         service_info: Model service information with requirements.
         run_info: Runtime information including prediction length.
-        n_locations: Number of locations to generate.
-        n_training_periods: Number of training periods.
-        n_historic_periods: Number of historic periods (subset of training).
-        seed: Random seed for reproducibility.
-        location_names: Custom location names (default: Location_A, Location_B, ...).
+        config: Generation configuration with data parameters.
 
     Returns:
         ExampleData with training_data, historic_data, future_data, and run_info.
     """
-    if seed is not None:
-        np.random.seed(seed)
+    config = config or DataGenerationConfig()
 
-    locations = location_names or [f"Location_{chr(65 + i)}" for i in range(n_locations)]
+    if config.seed is not None:
+        np.random.seed(config.seed)
 
-    total_periods = n_training_periods + run_info.prediction_length
+    locations = config.location_names or [f"Location_{chr(65 + i)}" for i in range(config.n_locations)]
+
+    total_periods = config.n_training_periods + run_info.prediction_length
     all_periods = _generate_time_periods(service_info.supported_period_type, total_periods)
 
-    training_periods = all_periods[:n_training_periods]
-    historic_start = max(0, n_training_periods - n_historic_periods)
-    historic_periods = all_periods[historic_start:n_training_periods]
-    future_periods = all_periods[n_training_periods:]
+    training_periods = all_periods[: config.n_training_periods]
+    historic_start = max(0, config.n_training_periods - config.n_historic_periods)
+    historic_periods = all_periods[historic_start : config.n_training_periods]
+    future_periods = all_periods[config.n_training_periods :]
 
     all_covariates = list(service_info.required_covariates) + list(run_info.additional_continuous_covariates)
 
-    def generate_dataframe(periods: list[str], include_target: bool) -> DataFrame:
-        """Generate DataFrame for given periods."""
+    def generate_dataframe(periods: list[str], include_target: bool) -> pd.DataFrame:
+        """Generate pandas DataFrame for given periods."""
         rows: list[dict[str, object]] = []
 
         for period in periods:
@@ -207,29 +247,29 @@ def generate_example_data(
 
                 rows.append(row)
 
-        return DataFrame.from_pandas(pd.DataFrame(rows))
+        return pd.DataFrame(rows)
 
-    training_data = generate_dataframe(training_periods, include_target=True)
-    historic_data = generate_dataframe(historic_periods, include_target=True)
-    future_data = generate_dataframe(future_periods, include_target=False)
+    training_df = generate_dataframe(training_periods, include_target=True)
+    historic_df = generate_dataframe(historic_periods, include_target=True)
+    future_df = generate_dataframe(future_periods, include_target=False)
+
+    if config.include_nans:
+        exclude_cols = ["time_period", "location"]
+        training_df = _inject_nans(training_df, config.nan_fraction, exclude_cols)
+        historic_df = _inject_nans(historic_df, config.nan_fraction, exclude_cols)
+        future_df = _inject_nans(future_df, config.nan_fraction, exclude_cols)
 
     return ExampleData(
-        training_data=training_data,
-        historic_data=historic_data,
-        future_data=future_data,
+        training_data=DataFrame.from_pandas(training_df),
+        historic_data=DataFrame.from_pandas(historic_df),
+        future_data=DataFrame.from_pandas(future_df),
         run_info=run_info,
     )
 
 
 def generate_test_data(
     service_info: MLServiceInfo,
-    prediction_length: int | None = None,
-    additional_covariates: list[str] | None = None,
-    n_locations: int = 3,
-    n_training_periods: int = 24,
-    n_historic_periods: int = 12,
-    seed: int | None = None,
-    location_names: list[str] | None = None,
+    config: DataGenerationConfig | None = None,
 ) -> ExampleData:
     """Generate complete test data based on model service info.
 
@@ -238,29 +278,13 @@ def generate_test_data(
 
     Args:
         service_info: Model service information with requirements.
-        prediction_length: Override default prediction length.
-        additional_covariates: Additional covariates to include (if allowed).
-        n_locations: Number of locations to generate.
-        n_training_periods: Number of training periods.
-        n_historic_periods: Number of historic periods.
-        seed: Random seed for reproducibility.
-        location_names: Custom location names.
+        config: Generation configuration with all parameters.
 
     Returns:
         ExampleData ready for model testing.
     """
-    run_info = generate_run_info(
-        service_info,
-        prediction_length=prediction_length,
-        additional_covariates=additional_covariates,
-    )
+    config = config or DataGenerationConfig()
 
-    return generate_example_data(
-        service_info,
-        run_info,
-        n_locations=n_locations,
-        n_training_periods=n_training_periods,
-        n_historic_periods=n_historic_periods,
-        seed=seed,
-        location_names=location_names,
-    )
+    run_info = generate_run_info(service_info, config)
+
+    return generate_example_data(service_info, run_info, config)

@@ -16,6 +16,7 @@ from chap_python_sdk.testing.example_data import (
     list_available_datasets,
 )
 from chap_python_sdk.testing.generators import (
+    DataGenerationConfig,
     MLServiceInfo,
     PeriodType,
     generate_example_data,
@@ -53,6 +54,7 @@ __all__ = [
     "generate_run_info",
     "generate_example_data",
     "generate_test_data",
+    "DataGenerationConfig",
     "MLServiceInfo",
     "PeriodType",
     # Validation

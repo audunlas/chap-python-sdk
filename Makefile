@@ -18,6 +18,7 @@ format:
 
 # Run type checkers (without fixing)
 check:
+	uv run ruff format --check src tests
 	uv run ruff check src tests
 	uv run mypy src tests
 	uv run pyright src tests

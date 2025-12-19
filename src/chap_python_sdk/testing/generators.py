@@ -105,8 +105,7 @@ def generate_run_info(
     covariates = config.additional_covariates
     if covariates and not service_info.allow_free_additional_continuous_covariates:
         raise ValueError(
-            "Model does not allow additional covariates "
-            "(allow_free_additional_continuous_covariates=False)"
+            "Model does not allow additional covariates (allow_free_additional_continuous_covariates=False)"
         )
 
     return RunInfo(

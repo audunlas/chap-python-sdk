@@ -161,9 +161,7 @@ class TestValidateModelIOWideFormat:
             predict_function = create_wide_format_predict_function(n_samples=expected_samples)
             result = await validate_model_io(train_function, predict_function, laos_monthly_data)
             assert result.success is True
-            assert result.n_samples == expected_samples, (
-                f"Expected {expected_samples} samples, got {result.n_samples}"
-            )
+            assert result.n_samples == expected_samples, f"Expected {expected_samples} samples, got {result.n_samples}"
 
 
 class TestValidateModelIOAll:

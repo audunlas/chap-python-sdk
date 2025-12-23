@@ -1,0 +1,85 @@
+site_name: CHAP Python SDK
+site_description: Validation and testing framework for chapkit models
+site_url: https://knutdrand.github.io/chap-python-sdk/
+repo_url: https://github.com/knutdrand/chap-python-sdk
+repo_name: knutdrand/chap-python-sdk
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            show_signature_annotations: true
+            separate_signature: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Model Testing: user-guide/model-testing.md
+      - Test Data Generation: user-guide/data-generation.md
+      - Prediction Formats: user-guide/prediction-formats.md
+      - Assertions: user-guide/assertions.md
+  - API Reference:
+      - Overview: api/index.md
+      - Types: api/types.md
+      - Validation: api/validation.md
+      - Assertions: api/assertions.md
+      - Predictions: api/predictions.md
+      - Generators: api/generators.md
+      - Example Data: api/example-data.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/knutdrand/chap-python-sdk

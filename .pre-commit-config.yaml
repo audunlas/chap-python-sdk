@@ -47,3 +47,12 @@ repos:
         args: [tests, -v]
         pass_filenames: false
         stages: [pre-push]
+
+      - id: pytest-docs
+        name: pytest docs
+        entry: uv run pytest --markdown-docs
+        language: system
+        types: [markdown]
+        args: [docs/, -v]
+        pass_filenames: false
+        stages: [pre-push]

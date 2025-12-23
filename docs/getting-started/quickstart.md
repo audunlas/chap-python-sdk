@@ -55,7 +55,7 @@ example_data = get_example_data(country="laos", frequency="monthly")
 
 Use `validate_model_io` to test your model:
 
-```python
+```python notest
 import pytest
 from chap_python_sdk.testing import validate_model_io
 
@@ -77,7 +77,7 @@ async def test_my_model():
 
 If you prefer to bundle your functions into a runner object:
 
-```python
+```python notest
 from chapkit import FunctionalModelRunner
 
 runner = FunctionalModelRunner(on_train=my_train, on_predict=my_predict)

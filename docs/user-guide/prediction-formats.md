@@ -44,10 +44,15 @@ This is used for scoringutils integration.
 Automatically detect the format of a DataFrame:
 
 ```python
-from chap_python_sdk.testing import detect_prediction_format
+# Create a nested format DataFrame
+nested_df = DataFrame.from_dict({
+    "time_period": ["2013-04", "2013-05"],
+    "location": ["Bokeo", "Bokeo"],
+    "samples": [[9, 5, 46], [12, 0, 43]],
+})
 
-format_type = detect_prediction_format(dataframe)
-# Returns: "nested", "wide", or "long"
+format_type = detect_prediction_format(nested_df)
+# Returns: "nested"
 ```
 
 ## Format Conversions
@@ -55,7 +60,12 @@ format_type = detect_prediction_format(dataframe)
 ### Nested to Wide
 
 ```python
-from chap_python_sdk.testing import predictions_to_wide
+# Create nested predictions
+predictions = DataFrame.from_dict({
+    "time_period": ["2013-04", "2013-05"],
+    "location": ["Bokeo", "Bokeo"],
+    "samples": [[9, 5, 46], [12, 0, 43]],
+})
 
 # Convert from nested to wide (for CHAP CSV output)
 wide_predictions = predictions_to_wide(predictions)
@@ -64,16 +74,27 @@ wide_predictions = predictions_to_wide(predictions)
 ### Wide to Nested
 
 ```python
-from chap_python_sdk.testing import predictions_from_wide
+# Create wide format DataFrame
+wide_df = DataFrame.from_dict({
+    "time_period": ["2013-04", "2013-05"],
+    "location": ["Bokeo", "Bokeo"],
+    "sample_0": [9, 12],
+    "sample_1": [5, 0],
+    "sample_2": [46, 43],
+})
 
-# Convert from wide to nested (from CHAP CSV)
-nested_predictions = predictions_from_wide(wide_dataframe)
+# Convert from wide to nested
+nested_predictions = predictions_from_wide(wide_df)
 ```
 
 ### Nested to Long
 
 ```python
-from chap_python_sdk.testing import predictions_to_long
+predictions = DataFrame.from_dict({
+    "time_period": ["2013-04"],
+    "location": ["Bokeo"],
+    "samples": [[9, 5, 46]],
+})
 
 # Convert from nested to long (for scoringutils)
 long_predictions = predictions_to_long(predictions)
@@ -82,10 +103,16 @@ long_predictions = predictions_to_long(predictions)
 ### Long to Nested
 
 ```python
-from chap_python_sdk.testing import predictions_from_long
+# Create long format DataFrame
+long_df = DataFrame.from_dict({
+    "time_period": ["2013-04", "2013-04", "2013-04"],
+    "location": ["Bokeo", "Bokeo", "Bokeo"],
+    "sample_id": [0, 1, 2],
+    "prediction": [9, 5, 46],
+})
 
 # Convert from long to nested
-nested_predictions = predictions_from_long(long_dataframe)
+nested_predictions = predictions_from_long(long_df)
 ```
 
 ## Checking for Samples
@@ -93,9 +120,13 @@ nested_predictions = predictions_from_long(long_dataframe)
 Check if a DataFrame has valid prediction samples:
 
 ```python
-from chap_python_sdk.testing import has_prediction_samples
+predictions = DataFrame.from_dict({
+    "time_period": ["2013-04"],
+    "location": ["Bokeo"],
+    "samples": [[9, 5, 46]],
+})
 
-if has_prediction_samples(dataframe):
+if has_prediction_samples(predictions):
     print("DataFrame has valid samples column")
 ```
 
@@ -104,18 +135,26 @@ if has_prediction_samples(dataframe):
 ### Generate Quantiles
 
 ```python
-from chap_python_sdk.testing import predictions_to_quantiles
+predictions = DataFrame.from_dict({
+    "time_period": ["2013-04"],
+    "location": ["Bokeo"],
+    "samples": [[9, 5, 46, 12, 8, 15, 20, 25, 30, 35]],
+})
 
 quantiles_df = predictions_to_quantiles(
     predictions,
-    quantiles=[0.025, 0.25, 0.5, 0.75, 0.975]
+    probabilities=[0.025, 0.25, 0.5, 0.75, 0.975]
 )
 ```
 
 ### Summary Statistics
 
 ```python
-from chap_python_sdk.testing import predictions_summary
+predictions = DataFrame.from_dict({
+    "time_period": ["2013-04"],
+    "location": ["Bokeo"],
+    "samples": [[9, 5, 46, 12, 8]],
+})
 
 summary = predictions_summary(predictions)
 # Returns DataFrame with mean, median, and confidence intervals
@@ -123,7 +162,7 @@ summary = predictions_summary(predictions)
 
 ## Example Workflow
 
-```python
+```python notest
 from chap_python_sdk.testing import (
     detect_prediction_format,
     predictions_from_wide,

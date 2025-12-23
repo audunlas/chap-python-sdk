@@ -5,14 +5,6 @@ The SDK can generate synthetic test data based on your model's declared requirem
 ## Basic Usage
 
 ```python
-from chap_python_sdk.testing import (
-    DataGenerationConfig,
-    MLServiceInfo,
-    PeriodType,
-    generate_test_data,
-    validate_model_io,
-)
-
 # Define your model's requirements
 service_info = MLServiceInfo(
     required_covariates=["rainfall", "mean_temperature"],
@@ -31,8 +23,11 @@ config = DataGenerationConfig(
 
 # Generate test data
 example_data = generate_test_data(service_info, config)
+```
 
-# Use in validation
+To use in validation (async context required):
+
+```python notest
 result = await validate_model_io(on_train, on_predict, example_data, my_config)
 ```
 
@@ -74,6 +69,12 @@ Configure the generated data with these options:
 Use the `include_nans` parameter to test that your model handles missing values correctly:
 
 ```python
+service_info = MLServiceInfo(
+    required_covariates=["rainfall"],
+    allow_free_additional_continuous_covariates=False,
+    supported_period_type=PeriodType.month,
+)
+
 config = DataGenerationConfig(
     prediction_length=3,
     n_locations=5,
@@ -94,10 +95,13 @@ example_data = generate_test_data(service_info, config)
 For more control, you can generate `RunInfo` and `ExampleData` separately:
 
 ```python
-from chap_python_sdk.testing import (
-    generate_run_info,
-    generate_example_data,
+service_info = MLServiceInfo(
+    required_covariates=["rainfall"],
+    allow_free_additional_continuous_covariates=False,
+    supported_period_type=PeriodType.month,
 )
+
+config = DataGenerationConfig(seed=42)
 
 # Step 1: Generate RunInfo based on model requirements
 run_info = generate_run_info(service_info, config)
@@ -111,7 +115,7 @@ example_data = generate_example_data(service_info, run_info, config)
 
 If your model exports its `MLServiceInfo`, you can use it directly:
 
-```python
+```python notest
 from main import info  # Your model's declared MLServiceInfo
 
 from chap_python_sdk.testing import (

@@ -1,4 +1,4 @@
-.PHONY: lint format check test coverage clean install dev
+.PHONY: lint format check test test-docs coverage clean install dev
 
 # Install dependencies
 install:
@@ -26,6 +26,10 @@ check:
 # Run tests
 test:
 	uv run pytest tests -v
+
+# Run documentation tests
+test-docs:
+	uv run pytest --markdown-docs docs/ -v
 
 # Run tests with coverage
 coverage:

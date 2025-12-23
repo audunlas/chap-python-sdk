@@ -8,7 +8,7 @@ Models are defined as async functions following the chapkit functional interface
 
 ### Train Function
 
-```python
+```python notest
 async def on_train(
     config: BaseConfig,
     data: DataFrame,
@@ -21,7 +21,7 @@ async def on_train(
 
 ### Predict Function
 
-```python
+```python notest
 async def on_predict(
     config: BaseConfig,
     model: Any,
@@ -51,7 +51,7 @@ from chap_python_sdk.testing import TrainFunction, PredictFunction
 
 Use `validate_model_io` to test your model against example data:
 
-```python
+```python notest
 from chap_python_sdk.testing import get_example_data, validate_model_io
 
 example_data = get_example_data(country="laos", frequency="monthly")
@@ -80,7 +80,7 @@ The validation returns a `ValidationResult` object:
 
 To validate against multiple datasets:
 
-```python
+```python notest
 from chap_python_sdk.testing import validate_model_io_all
 
 results = await validate_model_io_all(on_train, on_predict, config)
@@ -102,7 +102,7 @@ The predict function must return a DataFrame with these columns:
 Example:
 
 ```python
-return DataFrame.from_dict({
+predictions = DataFrame.from_dict({
     "time_period": ["2013-04", "2013-05"],
     "location": ["Bokeo", "Bokeo"],
     "samples": [[9, 5, 46], [12, 0, 43]],
@@ -113,7 +113,7 @@ return DataFrame.from_dict({
 
 ### Basic Test
 
-```python
+```python notest
 import pytest
 from chap_python_sdk.testing import get_example_data, validate_model_io
 
@@ -130,7 +130,7 @@ async def test_my_model():
 
 ### Using Fixtures
 
-```python
+```python notest
 import pytest
 from chap_python_sdk.testing import get_example_data, ExampleData
 
@@ -152,7 +152,7 @@ async def test_my_model(laos_monthly_data: ExampleData):
 
 The SDK supports passing runtime information to models via `RunInfo`:
 
-```python
+```python notest
 from chap_python_sdk.testing import RunInfo
 
 run_info = RunInfo(

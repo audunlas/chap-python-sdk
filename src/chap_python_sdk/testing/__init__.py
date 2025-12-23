@@ -1,6 +1,7 @@
 """Testing utilities for chapkit model validation."""
 
 from chap_python_sdk.testing.assertions import (
+    PredictionValidationError,
     assert_consistent_sample_counts,
     assert_no_nan_predictions,
     assert_nonnegative_predictions,
@@ -61,6 +62,7 @@ __all__ = [
     "validate_model_io",
     "validate_model_io_all",
     # Assertions
+    "PredictionValidationError",
     "assert_valid_predictions",
     "assert_prediction_shape",
     "assert_samples_column",
